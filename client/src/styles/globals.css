@@ -1,0 +1,346 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&family=DM+Serif+Display:ital@0;1&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg-primary: #ffffff;
+  --bg-secondary: #f7f7f5;
+  --bg-tertiary: #f0efe9;
+  --border: #e5e4df;
+  --border-strong: #d0ceca;
+  --text-primary: #1a1a18;
+  --text-secondary: #6b6a65;
+  --text-muted: #9e9d98;
+  --accent: #2563eb;
+  --accent-hover: #1d4ed8;
+  --accent-subtle: #eff6ff;
+  --red: #dc2626;
+  --red-subtle: #fef2f2;
+  --green: #16a34a;
+  --green-subtle: #f0fdf4;
+  --amber: #d97706;
+  --amber-subtle: #fffbeb;
+  --voice-active: #22c55e;
+  --voice-muted: #ef4444;
+}
+
+[data-theme='dark'] {
+  --bg-primary: #1c1c1a;
+  --bg-secondary: #252522;
+  --bg-tertiary: #2e2e2b;
+  --border: #3a3a36;
+  --border-strong: #4a4a45;
+  --text-primary: #f0efe9;
+  --text-secondary: #9e9d98;
+  --text-muted: #6b6a65;
+  --accent: #3b82f6;
+  --accent-hover: #60a5fa;
+  --accent-subtle: #1e3a5f;
+  --red-subtle: #2a1515;
+  --green-subtle: #14241a;
+  --amber-subtle: #2a2113;
+}
+
+@layer base {
+  * {
+    border-color: var(--border);
+  }
+
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    margin: 0;
+    font-family: 'DM Sans', system-ui, sans-serif;
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Visible focus ring for keyboard navigation. */
+  :focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+}
+
+.document-title {
+  font-family: 'DM Serif Display', serif;
+}
+
+/* ── Tiptap editor surface ─────────────────────────────── */
+.ProseMirror {
+  outline: none;
+  font-size: 1rem;
+  line-height: 1.8;
+  color: var(--text-primary);
+  min-height: 60vh;
+}
+
+.ProseMirror > * + * {
+  margin-top: 0.75em;
+}
+
+.ProseMirror h1 {
+  font-size: 2rem;
+  font-weight: 600;
+  line-height: 1.25;
+  margin-top: 1.4em;
+}
+.ProseMirror h2 {
+  font-size: 1.55rem;
+  font-weight: 600;
+  line-height: 1.3;
+  margin-top: 1.3em;
+}
+.ProseMirror h3 {
+  font-size: 1.27rem;
+  font-weight: 600;
+  margin-top: 1.2em;
+}
+.ProseMirror h4 {
+  font-size: 1.1rem;
+  font-weight: 600;
+  margin-top: 1.1em;
+}
+
+.ProseMirror ul,
+.ProseMirror ol {
+  padding-left: 1.5rem;
+}
+.ProseMirror ul {
+  list-style: disc;
+}
+.ProseMirror ol {
+  list-style: decimal;
+}
+
+.ProseMirror blockquote {
+  border-left: 3px solid var(--border-strong);
+  padding-left: 1rem;
+  color: var(--text-secondary);
+  font-style: italic;
+}
+
+.ProseMirror code {
+  background: var(--bg-tertiary);
+  border-radius: 4px;
+  padding: 0.1em 0.35em;
+  font-family: ui-monospace, 'SFMono-Regular', Menlo, monospace;
+  font-size: 0.9em;
+}
+
+.ProseMirror pre {
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.9rem 1.1rem;
+  overflow-x: auto;
+}
+.ProseMirror pre code {
+  background: none;
+  padding: 0;
+}
+
+.ProseMirror hr {
+  border: none;
+  border-top: 1px solid var(--border-strong);
+  margin: 1.5rem 0;
+}
+
+.ProseMirror a {
+  color: var(--accent);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.ProseMirror img {
+  max-width: 100%;
+  border-radius: 8px;
+}
+
+.ProseMirror mark {
+  border-radius: 2px;
+  padding: 0 1px;
+}
+
+/* Task lists */
+.ProseMirror ul[data-type='taskList'] {
+  list-style: none;
+  padding-left: 0.25rem;
+}
+.ProseMirror ul[data-type='taskList'] li {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+.ProseMirror ul[data-type='taskList'] li > label {
+  margin-top: 0.4em;
+}
+.ProseMirror ul[data-type='taskList'] input[type='checkbox'] {
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+/* Tables */
+.ProseMirror table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 0.5rem 0;
+  overflow: hidden;
+}
+.ProseMirror th,
+.ProseMirror td {
+  border: 1px solid var(--border-strong);
+  padding: 0.4rem 0.6rem;
+  vertical-align: top;
+}
+.ProseMirror th {
+  background: var(--bg-secondary);
+  font-weight: 600;
+  text-align: left;
+}
+.ProseMirror .selectedCell::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--accent-subtle);
+  opacity: 0.4;
+  pointer-events: none;
+}
+.ProseMirror td,
+.ProseMirror th {
+  position: relative;
+}
+
+/* Placeholder for empty doc */
+.ProseMirror p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  float: left;
+  color: var(--text-muted);
+  pointer-events: none;
+  height: 0;
+}
+
+/* Ghost-text autocomplete suggestion */
+.autocomplete-ghost {
+  color: var(--text-muted);
+  opacity: 0.7;
+}
+
+/* ── Collaboration cursors ─────────────────────────────── */
+.collaboration-cursor__caret {
+  position: relative;
+  margin-left: -1px;
+  margin-right: -1px;
+  border-left: 1px solid #0d0d0d;
+  border-right: 1px solid #0d0d0d;
+  word-break: normal;
+  pointer-events: none;
+}
+.collaboration-cursor__label {
+  position: absolute;
+  top: -1.4em;
+  left: -1px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: normal;
+  user-select: none;
+  color: #fff;
+  padding: 0.1rem 0.35rem;
+  border-radius: 4px 4px 4px 0;
+  white-space: nowrap;
+}
+
+/* ── Animations ────────────────────────────────────────── */
+@keyframes speaking-pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.5);
+  }
+  70% {
+    box-shadow: 0 0 0 8px rgba(34, 197, 94, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(34, 197, 94, 0);
+  }
+}
+.is-speaking {
+  animation: speaking-pulse 1.2s infinite;
+}
+
+@keyframes slide-in {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+.animate-slide-in {
+  animation: slide-in 0.22s ease-out;
+}
+
+@keyframes fade-out {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+.animate-fade-out {
+  animation: fade-out 0.5s ease forwards;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.animate-fade-in {
+  animation: fade-in 0.25s ease;
+}
+
+@keyframes typewriter-blink {
+  50% {
+    opacity: 0.3;
+  }
+}
+.typewriter-caret::after {
+  content: '▋';
+  margin-left: 1px;
+  animation: typewriter-blink 1s step-end infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.animate-spin-slow {
+  animation: spin 0.8s linear infinite;
+}
+
+/* Thin scrollbars in panels */
+.scroll-thin::-webkit-scrollbar {
+  width: 8px;
+}
+.scroll-thin::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: 8px;
+}
+.scroll-thin::-webkit-scrollbar-track {
+  background: transparent;
+}
