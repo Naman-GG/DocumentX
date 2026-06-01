@@ -25,18 +25,6 @@ import { CollaboratorCursors } from './CollaboratorCursors'
 import { useStore } from '../../store/useStore'
 import { useAutocomplete } from '../AI/useAI'
 
-const SEED_CONTENT = `
-<h2>Welcome to DocumentX 👋</h2>
-<p>This is a <strong>real-time collaborative</strong> document. Open this same URL in another browser tab and watch edits — and cursors — sync instantly.</p>
-<p>Try these out:</p>
-<ul>
-  <li>Format text with the toolbar or shortcuts (<code>Ctrl/Cmd+B</code>, <code>Ctrl/Cmd+I</code>).</li>
-  <li>Start <em>Voice Chat</em> from the sidebar to talk to collaborators.</li>
-  <li>Open the <em>AI</em> panel to generate, summarize, or clean up your writing.</li>
-</ul>
-<blockquote>Everything here is conflict-free — edit the same sentence at the same time and Yjs sorts it out.</blockquote>
-`
-
 /**
  * Builds the Tiptap editor bound to the shared Yjs document. History is
  * delegated to the Collaboration extension (Yjs undo manager), so StarterKit's
@@ -93,28 +81,6 @@ export function useDocumentEditor(
     editor?.chain().updateUser({ name, color }).run()
   }, [editor, name, color])
 
-  // Seed example content once, only if the synced document is still empty.
-  // Viewers never seed (they can't write, and the server would drop it anyway).
-  useEffect(() => {
-    if (!editor || !editable) return
-    const seedIfEmpty = () => {
-      if (editor.isEmpty) {
-        editor.commands.setContent(SEED_CONTENT, false)
-      }
-    }
-    if (provider.synced) {
-      seedIfEmpty()
-    } else {
-      const onSync = (isSynced: boolean) => {
-        if (isSynced) {
-          seedIfEmpty()
-          provider.off('sync', onSync)
-        }
-      }
-      provider.on('sync', onSync)
-    }
-  }, [editor, provider, editable])
-
   return editor
 }
 
@@ -129,12 +95,14 @@ export function EditorCore({ editor }: EditorCoreProps) {
 
   return (
     <div className="flex-1 overflow-y-auto scroll-thin px-4 py-6 sm:px-8 sm:py-10">
+      {/* A4 portrait page (210×297mm ≈ 794×1123px at 96dpi). min-height keeps
+          the page proportions even for short documents; long ones grow taller. */}
       <div
-        className="relative mx-auto w-full max-w-[900px] rounded-lg bg-bg-primary"
+        className="relative mx-auto w-full max-w-[794px] rounded-lg bg-bg-primary sm:min-h-[1123px]"
         style={{ boxShadow: '0 1px 8px rgba(0,0,0,0.08)' }}
       >
         <CollaboratorCursors />
-        <div className="px-6 py-10 sm:px-[100px] sm:py-[80px]">
+        <div className="px-6 py-10 sm:px-24 sm:py-[96px]">
           <EditorContent editor={editor} />
         </div>
       </div>
