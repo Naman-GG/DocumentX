@@ -5,14 +5,18 @@ import * as syncProtocol from 'y-protocols/sync'
 import * as awarenessProtocol from 'y-protocols/awareness'
 import * as encoding from 'lib0/encoding'
 import * as decoding from 'lib0/decoding'
+import { verifyToken, resolveAccess, type Role } from './access.js'
 
 /**
- * A self-contained y-websocket compatible server.
+ * A self-contained y-websocket compatible server with Firebase auth and
+ * role-based access:
+ *  - Every connection must present a valid Firebase ID token (`?token=`) and
+ *    have access to the document (owner/editor/viewer); others are rejected.
+ *  - `viewer` connections receive document state but their inbound updates are
+ *    dropped, enforcing read-only at the protocol level (not just the UI).
  *
- * We implement the y-websocket wire protocol directly (rather than importing
- * `y-websocket/bin/utils`, which ships no types and is awkward under ESM) so the
- * server has zero hidden moving parts. Each `roomId` maps to a single shared
- * Y.Doc kept in memory for as long as at least one client is connected.
+ * Each `docId` maps to one shared Y.Doc kept in memory while clients are
+ * connected. (Durable persistence is layered on in yjs-persistence.)
  */
 
 const MESSAGE_SYNC = 0
@@ -20,7 +24,7 @@ const MESSAGE_AWARENESS = 1
 
 const PING_TIMEOUT = 30_000
 
-class WSSharedDoc extends Y.Doc {
+export class WSSharedDoc extends Y.Doc {
   name: string
   conns: Map<WebSocket, Set<number>>
   awareness: awarenessProtocol.Awareness
@@ -48,7 +52,6 @@ class WSSharedDoc extends Y.Doc {
         removed.forEach((clientID) => connControlledIDs.delete(clientID))
       }
     }
-    // Broadcast awareness update to all connections.
     const encoder = encoding.createEncoder()
     encoding.writeVarUint(encoder, MESSAGE_AWARENESS)
     encoding.writeVarUint8Array(
@@ -70,11 +73,24 @@ class WSSharedDoc extends Y.Doc {
 
 const docs = new Map<string, WSSharedDoc>()
 
-function getYDoc(docName: string): WSSharedDoc {
+/** Hook points for durable persistence (wired up in yjs-persistence). */
+export interface PersistenceHooks {
+  bindState?: (doc: WSSharedDoc) => Promise<void>
+  writeState?: (doc: WSSharedDoc) => Promise<void>
+}
+let persistence: PersistenceHooks = {}
+export function setPersistence(hooks: PersistenceHooks) {
+  persistence = hooks
+}
+
+async function getYDoc(docName: string): Promise<WSSharedDoc> {
   let doc = docs.get(docName)
   if (doc === undefined) {
     doc = new WSSharedDoc(docName)
     docs.set(docName, doc)
+    if (persistence.bindState) {
+      await persistence.bindState(doc)
+    }
   }
   return doc
 }
@@ -99,9 +115,16 @@ function closeConn(doc: WSSharedDoc, conn: WebSocket) {
     doc.conns.delete(conn)
     awarenessProtocol.removeAwarenessStates(doc.awareness, Array.from(controlledIds), null)
     if (doc.conns.size === 0) {
-      // No more connections — drop the doc so memory is reclaimed.
-      doc.destroy()
-      docs.delete(doc.name)
+      // Persist a final snapshot, then drop the doc to reclaim memory.
+      const finalize = persistence.writeState
+        ? persistence.writeState(doc)
+        : Promise.resolve()
+      finalize.finally(() => {
+        if (doc.conns.size === 0) {
+          doc.destroy()
+          docs.delete(doc.name)
+        }
+      })
     }
   }
   try {
@@ -111,7 +134,12 @@ function closeConn(doc: WSSharedDoc, conn: WebSocket) {
   }
 }
 
-function messageListener(conn: WebSocket, doc: WSSharedDoc, message: Uint8Array) {
+function messageListener(
+  conn: WebSocket,
+  doc: WSSharedDoc,
+  message: Uint8Array,
+  role: Role
+) {
   try {
     const encoder = encoding.createEncoder()
     const decoder = decoding.createDecoder(message)
@@ -119,14 +147,23 @@ function messageListener(conn: WebSocket, doc: WSSharedDoc, message: Uint8Array)
     switch (messageType) {
       case MESSAGE_SYNC: {
         encoding.writeVarUint(encoder, MESSAGE_SYNC)
-        syncProtocol.readSyncMessage(decoder, encoder, doc, conn)
-        // Only reply if there is something to send (sync step 1/2 responses).
+        const syncType = decoding.readVarUint(decoder)
+        if (syncType === syncProtocol.messageYjsSyncStep1) {
+          // Client requests our state — always answer (read access).
+          syncProtocol.readSyncStep1(decoder, encoder, doc)
+        } else if (syncType === syncProtocol.messageYjsSyncStep2) {
+          // Client sending updates — viewers are not allowed to write.
+          if (role !== 'viewer') syncProtocol.readSyncStep2(decoder, doc, conn)
+        } else if (syncType === syncProtocol.messageYjsUpdate) {
+          if (role !== 'viewer') syncProtocol.readUpdate(decoder, doc, conn)
+        }
         if (encoding.length(encoder) > 1) {
           send(doc, conn, encoding.toUint8Array(encoder))
         }
         break
       }
       case MESSAGE_AWARENESS: {
+        // Awareness (cursors/presence) is allowed for everyone, including viewers.
         awarenessProtocol.applyAwarenessUpdate(
           doc.awareness,
           decoding.readVarUint8Array(decoder),
@@ -140,74 +177,99 @@ function messageListener(conn: WebSocket, doc: WSSharedDoc, message: Uint8Array)
   }
 }
 
-/**
- * Derive the room name from the connection URL. The client connects to
- * `ws://host/yjs/<roomId>`, so the room is the trailing path segment.
- */
-function roomFromReq(req: IncomingMessage): string {
+function parseConn(req: IncomingMessage): { docName: string; token: string | null } {
   const url = new URL(req.url ?? '/', `http://${req.headers.host}`)
-  const parts = url.pathname.split('/').filter(Boolean) // ['yjs', '<roomId>']
-  return parts[1] ?? 'default'
+  const parts = url.pathname.split('/').filter(Boolean) // ['yjs', '<docId>']
+  return { docName: parts[1] ?? 'default', token: url.searchParams.get('token') }
 }
 
 export function setupYjsServer(conn: WebSocket, req: IncomingMessage) {
   conn.binaryType = 'arraybuffer'
-  const docName = roomFromReq(req)
-  const doc = getYDoc(docName)
-  doc.conns.set(conn, new Set())
+  const { docName, token } = parseConn(req)
 
-  conn.on('message', (message: ArrayBuffer) => {
-    messageListener(conn, doc, new Uint8Array(message))
-  })
+  // Buffer any messages that arrive while we authenticate, then replay them.
+  const buffered: ArrayBuffer[] = []
+  const onEarly = (m: ArrayBuffer) => buffered.push(m)
+  conn.on('message', onEarly)
 
-  // Liveness check — terminate dead connections.
-  let pongReceived = true
-  const pingInterval = setInterval(() => {
-    if (!pongReceived) {
-      if (doc.conns.has(conn)) closeConn(doc, conn)
-      clearInterval(pingInterval)
+  ;(async () => {
+    const user = await verifyToken(token)
+    if (!user) {
+      conn.close(1008, 'unauthorized')
       return
     }
-    if (doc.conns.has(conn)) {
-      pongReceived = false
-      try {
-        conn.ping()
-      } catch {
-        closeConn(doc, conn)
+    const role = await resolveAccess(docName, user)
+    if (!role) {
+      conn.close(1008, 'forbidden')
+      return
+    }
+
+    const doc = await getYDoc(docName)
+    doc.conns.set(conn, new Set())
+    conn.off('message', onEarly)
+
+    conn.on('message', (message: ArrayBuffer) => {
+      messageListener(conn, doc, new Uint8Array(message), role)
+    })
+
+    // Liveness check — terminate dead connections.
+    let pongReceived = true
+    const pingInterval = setInterval(() => {
+      if (!pongReceived) {
+        if (doc.conns.has(conn)) closeConn(doc, conn)
         clearInterval(pingInterval)
+        return
+      }
+      if (doc.conns.has(conn)) {
+        pongReceived = false
+        try {
+          conn.ping()
+        } catch {
+          closeConn(doc, conn)
+          clearInterval(pingInterval)
+        }
+      }
+    }, PING_TIMEOUT)
+    conn.on('pong', () => {
+      pongReceived = true
+    })
+    conn.on('close', () => {
+      closeConn(doc, conn)
+      clearInterval(pingInterval)
+    })
+
+    // Send initial sync step 1 + current awareness to the newcomer.
+    {
+      const encoder = encoding.createEncoder()
+      encoding.writeVarUint(encoder, MESSAGE_SYNC)
+      syncProtocol.writeSyncStep1(encoder, doc)
+      send(doc, conn, encoding.toUint8Array(encoder))
+
+      const awarenessStates = doc.awareness.getStates()
+      if (awarenessStates.size > 0) {
+        const awEncoder = encoding.createEncoder()
+        encoding.writeVarUint(awEncoder, MESSAGE_AWARENESS)
+        encoding.writeVarUint8Array(
+          awEncoder,
+          awarenessProtocol.encodeAwarenessUpdate(
+            doc.awareness,
+            Array.from(awarenessStates.keys())
+          )
+        )
+        send(doc, conn, encoding.toUint8Array(awEncoder))
       }
     }
-  }, PING_TIMEOUT)
 
-  conn.on('pong', () => {
-    pongReceived = true
-  })
-
-  conn.on('close', () => {
-    closeConn(doc, conn)
-    clearInterval(pingInterval)
-  })
-
-  // Send initial sync step 1 so the client can reconcile its state.
-  {
-    const encoder = encoding.createEncoder()
-    encoding.writeVarUint(encoder, MESSAGE_SYNC)
-    syncProtocol.writeSyncStep1(encoder, doc)
-    send(doc, conn, encoding.toUint8Array(encoder))
-
-    // Send current awareness states to the newcomer.
-    const awarenessStates = doc.awareness.getStates()
-    if (awarenessStates.size > 0) {
-      const awEncoder = encoding.createEncoder()
-      encoding.writeVarUint(awEncoder, MESSAGE_AWARENESS)
-      encoding.writeVarUint8Array(
-        awEncoder,
-        awarenessProtocol.encodeAwarenessUpdate(
-          doc.awareness,
-          Array.from(awarenessStates.keys())
-        )
-      )
-      send(doc, conn, encoding.toUint8Array(awEncoder))
+    // Replay anything buffered during authentication.
+    for (const m of buffered) {
+      messageListener(conn, doc, new Uint8Array(m), role)
     }
-  }
+  })().catch((err) => {
+    console.error('[yjs] connection setup failed', err)
+    try {
+      conn.close(1011, 'server error')
+    } catch {
+      /* noop */
+    }
+  })
 }

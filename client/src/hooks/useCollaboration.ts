@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import * as Y from 'yjs'
 import { WebsocketProvider } from 'y-websocket'
 import { useStore, type AwarenessUser } from '../store/useStore'
+import { getIdToken } from '../auth/AuthProvider'
 
 const WS_URL = import.meta.env.VITE_WS_URL || 'ws://localhost:3001'
 
@@ -39,21 +40,32 @@ export function useCollaboration(roomId: string): Collaboration | null {
   voiceRef.current = { inVoice, isMuted, isSpeaking }
 
   // Create the doc + provider for this room, and tear them down on unmount.
+  // The Firebase ID token is sent as a query param so the server can verify
+  // the connection and enforce document access.
   useEffect(() => {
     const ydoc = new Y.Doc()
-    const provider = new WebsocketProvider(`${WS_URL}/yjs`, roomId, ydoc)
     const titleText = ydoc.getText('title')
+    let provider: WebsocketProvider | null = null
+    let cancelled = false
 
     const onStatus = (e: { status: string }) => {
       setStatus(e.status === 'connected' ? 'connected' : 'disconnected')
     }
-    provider.on('status', onStatus)
 
-    setConn({ ydoc, provider, titleText })
+    void (async () => {
+      const token = await getIdToken()
+      if (cancelled) return
+      provider = new WebsocketProvider(`${WS_URL}/yjs`, roomId, ydoc, {
+        params: token ? { token } : {},
+      })
+      provider.on('status', onStatus)
+      setConn({ ydoc, provider, titleText })
+    })()
 
     return () => {
-      provider.off('status', onStatus)
-      provider.destroy()
+      cancelled = true
+      provider?.off('status', onStatus)
+      provider?.destroy()
       ydoc.destroy()
       setConn(null)
       setStatus('connecting')

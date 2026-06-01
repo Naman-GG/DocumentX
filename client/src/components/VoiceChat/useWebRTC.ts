@@ -1,8 +1,25 @@
 import { useEffect, useRef, useState } from 'react'
 import SimplePeer from 'simple-peer'
 import { useStore } from '../../store/useStore'
+import { getIdToken } from '../../auth/AuthProvider'
 
 const WS_URL = import.meta.env.VITE_WS_URL || 'ws://localhost:3001'
+
+// ICE servers for traversing NATs over the internet. Google's public STUN works
+// for most networks; an optional TURN relay (e.g. Metered Open Relay free tier)
+// handles restrictive/symmetric NATs where a direct connection isn't possible.
+const ICE_SERVERS: RTCIceServer[] = [
+  { urls: 'stun:stun.l.google.com:19302' },
+  ...(import.meta.env.VITE_TURN_URL
+    ? [
+        {
+          urls: import.meta.env.VITE_TURN_URL,
+          username: import.meta.env.VITE_TURN_USERNAME,
+          credential: import.meta.env.VITE_TURN_CREDENTIAL,
+        },
+      ]
+    : []),
+]
 
 interface ExistingPeer {
   peerId: string
@@ -29,17 +46,23 @@ export function useWebRTC(
   useEffect(() => {
     if (!inVoice || !localStream) return
 
-    const ws = new WebSocket(`${WS_URL}/signal/${roomId}`)
-    wsRef.current = ws
+    let ws: WebSocket | null = null
+    let cancelled = false
     const peers = peersRef.current
 
     const send = (msg: unknown) => {
-      if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(msg))
+      const s = wsRef.current
+      if (s && s.readyState === WebSocket.OPEN) s.send(JSON.stringify(msg))
     }
 
     const createPeer = (remotePeerId: string, initiator: boolean) => {
       if (peers.has(remotePeerId)) return peers.get(remotePeerId)!
-      const peer = new SimplePeer({ initiator, trickle: true, stream: localStream })
+      const peer = new SimplePeer({
+        initiator,
+        trickle: true,
+        stream: localStream,
+        config: { iceServers: ICE_SERVERS },
+      })
 
       peer.on('signal', (data) => {
         send({ type: 'signal', to: remotePeerId, from: myPeerId, data })
@@ -71,11 +94,7 @@ export function useWebRTC(
       })
     }
 
-    ws.onopen = () => {
-      send({ type: 'join', roomId, peerId: myPeerId, name: myName, color: myColor })
-    }
-
-    ws.onmessage = (event) => {
+    const onMessage = (event: MessageEvent) => {
       let msg: { type: string; [k: string]: unknown }
       try {
         msg = JSON.parse(event.data)
@@ -113,11 +132,25 @@ export function useWebRTC(
       }
     }
 
+    // Fetch a fresh auth token, then open the signaling socket.
+    void (async () => {
+      const token = await getIdToken()
+      if (cancelled) return
+      const qs = token ? `?token=${encodeURIComponent(token)}` : ''
+      ws = new WebSocket(`${WS_URL}/signal/${roomId}${qs}`)
+      wsRef.current = ws
+      ws.onopen = () => {
+        send({ type: 'join', roomId, peerId: myPeerId, name: myName, color: myColor })
+      }
+      ws.onmessage = onMessage
+    })()
+
     return () => {
+      cancelled = true
       peers.forEach((p) => p.destroy())
       peers.clear()
       setRemoteStreams({})
-      ws.close()
+      ws?.close()
       wsRef.current = null
     }
   }, [roomId, inVoice, localStream, myPeerId, myName, myColor])

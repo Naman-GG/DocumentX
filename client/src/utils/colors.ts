@@ -27,6 +27,15 @@ export function randomColor(): string {
   return USER_COLORS[Math.floor(Math.random() * USER_COLORS.length)]
 }
 
+/** Deterministic, stable cursor/avatar color derived from a user id. */
+export function colorForUid(uid: string): string {
+  let hash = 0
+  for (let i = 0; i < uid.length; i++) {
+    hash = (hash * 31 + uid.charCodeAt(i)) | 0
+  }
+  return USER_COLORS[Math.abs(hash) % USER_COLORS.length]
+}
+
 export function randomName(): string {
   const adj = ADJECTIVES[Math.floor(Math.random() * ADJECTIVES.length)]
   const animal = ANIMALS[Math.floor(Math.random() * ANIMALS.length)]

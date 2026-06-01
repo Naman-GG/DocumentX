@@ -1,38 +1,18 @@
 import { v4 as uuidv4 } from 'uuid'
-import { randomColor, randomName } from './colors'
 
-export interface LocalIdentity {
-  /** Stable per-browser peer id, used for WebRTC signaling. */
-  peerId: string
-  name: string
-  color: string
-}
-
-const STORAGE_KEY = 'documentx.identity'
-
-export function loadIdentity(): LocalIdentity {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY)
-    if (raw) {
-      const parsed = JSON.parse(raw) as Partial<LocalIdentity>
-      if (parsed.peerId && parsed.name && parsed.color) {
-        return parsed as LocalIdentity
-      }
-    }
-  } catch {
-    /* fall through to fresh identity */
+/**
+ * A stable id for this browser tab, used to build a unique WebRTC peer id even
+ * when the same account is open in multiple tabs. Persists across reloads of
+ * the same tab via sessionStorage.
+ */
+export function getTabId(): string {
+  const KEY = 'documentx.tabId'
+  let id = sessionStorage.getItem(KEY)
+  if (!id) {
+    id = uuidv4()
+    sessionStorage.setItem(KEY, id)
   }
-  const identity: LocalIdentity = {
-    peerId: uuidv4(),
-    name: randomName(),
-    color: randomColor(),
-  }
-  saveIdentity(identity)
-  return identity
-}
-
-export function saveIdentity(identity: LocalIdentity): void {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(identity))
+  return id
 }
 
 const THEME_KEY = 'documentx.theme'

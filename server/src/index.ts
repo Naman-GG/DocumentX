@@ -5,10 +5,17 @@ import { WebSocketServer } from 'ws'
 import cors from 'cors'
 import { setupYjsServer } from './yjs-server.js'
 import { setupSignaling } from './signaling.js'
+import { initPersistence } from './yjs-persistence.js'
 import { aiRouter } from './ai.js'
 
+// Wire Firestore-backed persistence into the Yjs server.
+initPersistence()
+
 const app = express()
-app.use(cors())
+// In production set CLIENT_ORIGIN to the deployed client URL(s) (comma-separated)
+// to lock down CORS; if unset (local dev), all origins are allowed.
+const clientOrigin = process.env.CLIENT_ORIGIN
+app.use(cors(clientOrigin ? { origin: clientOrigin.split(',').map((o) => o.trim()) } : {}))
 app.use(express.json({ limit: '2mb' }))
 
 app.get('/health', (_req, res) => {

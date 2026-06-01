@@ -44,12 +44,14 @@ const SEED_CONTENT = `
  */
 export function useDocumentEditor(
   ydoc: Y.Doc,
-  provider: WebsocketProvider
+  provider: WebsocketProvider,
+  editable = true
 ): Editor | null {
   const { name, color } = useStore()
 
   const editor = useEditor(
     {
+      editable,
       extensions: [
         StarterKit.configure({ history: false }),
         Underline,
@@ -83,7 +85,7 @@ export function useDocumentEditor(
         },
       },
     },
-    [ydoc, provider]
+    [ydoc, provider, editable]
   )
 
   // Keep the collaboration cursor label in sync with name/color changes.
@@ -92,8 +94,9 @@ export function useDocumentEditor(
   }, [editor, name, color])
 
   // Seed example content once, only if the synced document is still empty.
+  // Viewers never seed (they can't write, and the server would drop it anyway).
   useEffect(() => {
-    if (!editor) return
+    if (!editor || !editable) return
     const seedIfEmpty = () => {
       if (editor.isEmpty) {
         editor.commands.setContent(SEED_CONTENT, false)
@@ -110,7 +113,7 @@ export function useDocumentEditor(
       }
       provider.on('sync', onSync)
     }
-  }, [editor, provider])
+  }, [editor, provider, editable])
 
   return editor
 }

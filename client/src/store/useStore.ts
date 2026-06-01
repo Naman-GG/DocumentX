@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { loadIdentity, saveIdentity, loadTheme, saveTheme, type Theme } from '../utils/identity'
+import { loadTheme, saveTheme, type Theme } from '../utils/identity'
 
 /** A remote (or local) participant as seen through Yjs awareness. */
 export interface AwarenessUser {
@@ -14,10 +14,11 @@ export interface AwarenessUser {
 }
 
 interface UIState {
-  // Local identity
+  // Local identity (populated from the authenticated Firebase user).
   peerId: string
   name: string
   color: string
+  setIdentity: (identity: { peerId: string; name: string; color: string }) => void
   setName: (name: string) => void
 
   // Theme
@@ -47,30 +48,27 @@ interface UIState {
   setDocTitle: (title: string) => void
 }
 
-const identity = loadIdentity()
 const theme = loadTheme()
 
-export const useStore = create<UIState>((set, get) => ({
-  peerId: identity.peerId,
-  name: identity.name,
-  color: identity.color,
-  setName: (name) => {
-    const next = { ...identity, name, color: get().color, peerId: get().peerId }
-    saveIdentity(next)
-    set({ name })
-  },
+export const useStore = create<UIState>((set) => ({
+  peerId: '',
+  name: '',
+  color: '#2563EB',
+  setIdentity: (identity) => set(identity),
+  setName: (name) => set({ name }),
 
   theme,
   toggleTheme: () => {
-    const next: Theme = get().theme === 'dark' ? 'light' : 'dark'
-    saveTheme(next)
-    document.documentElement.setAttribute('data-theme', next)
-    set({ theme: next })
+    set((s) => {
+      const next: Theme = s.theme === 'dark' ? 'light' : 'dark'
+      saveTheme(next)
+      document.documentElement.setAttribute('data-theme', next)
+      return { theme: next }
+    })
   },
 
   aiPanelOpen: false,
-  toggleAIPanel: (open) =>
-    set((s) => ({ aiPanelOpen: open ?? !s.aiPanelOpen })),
+  toggleAIPanel: (open) => set((s) => ({ aiPanelOpen: open ?? !s.aiPanelOpen })),
   sidebarOpen: true,
   toggleSidebar: (open) => set((s) => ({ sidebarOpen: open ?? !s.sidebarOpen })),
 

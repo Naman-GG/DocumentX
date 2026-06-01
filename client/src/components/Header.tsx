@@ -1,7 +1,13 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import type * as Y from 'yjs'
-import { Sparkles, Moon, Sun, Users, Wifi, WifiOff, PanelRightClose, PanelRightOpen } from 'lucide-react'
+import {
+  Sparkles, Moon, Sun, Users, Wifi, WifiOff, PanelRightClose, PanelRightOpen,
+  Home, LogOut, Share2, Eye,
+} from 'lucide-react'
+import type { Role } from '../lib/documents'
 import { useStore } from '../store/useStore'
+import { useAuth } from '../auth/AuthProvider'
 import { initialsOf } from '../utils/colors'
 import { Modal } from './UI/Modal'
 import { Tooltip } from './UI/Tooltip'
@@ -9,14 +15,19 @@ import { Tooltip } from './UI/Tooltip'
 interface HeaderProps {
   titleText: Y.Text
   status: 'connecting' | 'connected' | 'disconnected'
+  role: Role
+  canShare: boolean
+  onShare: () => void
 }
 
-export function Header({ titleText, status }: HeaderProps) {
+export function Header({ titleText, status, role, canShare, onShare }: HeaderProps) {
   const {
-    name, color, setName, theme, toggleTheme,
+    name, color, theme, toggleTheme,
     aiPanelOpen, toggleAIPanel, sidebarOpen, toggleSidebar,
     docTitle, users,
   } = useStore()
+  const { updateName, signOutUser } = useAuth()
+  const navigate = useNavigate()
 
   const [nameModalOpen, setNameModalOpen] = useState(false)
   const [draftName, setDraftName] = useState(name)
@@ -29,32 +40,65 @@ export function Header({ titleText, status }: HeaderProps) {
     })
   }
 
-  const saveName = () => {
+  const saveName = async () => {
     const trimmed = draftName.trim()
-    if (trimmed) setName(trimmed)
+    if (trimmed) await updateName(trimmed)
     setNameModalOpen(false)
+  }
+
+  const signOut = async () => {
+    await signOutUser()
+    navigate('/login', { replace: true })
   }
 
   return (
     <header className="flex h-14 shrink-0 items-center gap-3 border-b border-border bg-bg-primary px-3 sm:px-4">
-      {/* Logo */}
-      <div className="flex shrink-0 items-center gap-2">
-        <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-accent text-white">
-          <span className="document-title text-base leading-none">D</span>
-        </div>
-        <span className="hidden text-sm font-semibold text-text-primary sm:inline">DocumentX</span>
-      </div>
+      {/* Logo → back to dashboard */}
+      <Tooltip label="All documents">
+        <button
+          type="button"
+          onClick={() => navigate('/')}
+          aria-label="Back to dashboard"
+          className="flex shrink-0 items-center gap-2"
+        >
+          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-accent text-white">
+            <Home size={15} />
+          </div>
+          <span className="hidden text-sm font-semibold text-text-primary sm:inline">DocumentX</span>
+        </button>
+      </Tooltip>
 
       <div className="mx-1 hidden h-5 w-px bg-border sm:block" />
 
-      {/* Editable title */}
+      {/* Editable title (read-only for viewers) */}
       <input
         aria-label="Document title"
         value={docTitle}
         onChange={(e) => onTitleChange(e.target.value)}
-        className="document-title min-w-0 flex-1 truncate bg-transparent text-lg text-text-primary outline-none placeholder:text-text-muted focus:underline"
+        readOnly={role === 'viewer'}
+        className="document-title min-w-0 flex-1 truncate bg-transparent text-lg text-text-primary outline-none placeholder:text-text-muted focus:underline read-only:cursor-default"
         placeholder="Untitled document"
       />
+
+      {/* View-only badge for viewers */}
+      {role === 'viewer' && (
+        <span className="hidden items-center gap-1.5 rounded-full bg-bg-tertiary px-2.5 py-1 text-xs font-medium text-text-secondary sm:flex">
+          <Eye size={13} />
+          View only
+        </span>
+      )}
+
+      {/* Share (owner only) */}
+      {canShare && (
+        <button
+          type="button"
+          onClick={onShare}
+          className="flex h-8 items-center gap-1.5 rounded-lg border border-border px-2.5 text-sm font-medium text-text-primary transition-colors hover:bg-bg-secondary"
+        >
+          <Share2 size={15} />
+          <span className="hidden sm:inline">Share</span>
+        </button>
+      )}
 
       {/* Connection status */}
       <Tooltip label={status === 'connected' ? 'Connected' : status === 'connecting' ? 'Connecting…' : 'Disconnected'}>
@@ -150,6 +194,16 @@ export function Header({ titleText, status }: HeaderProps) {
               className="ml-auto rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white hover:bg-accent-hover"
             >
               Save
+            </button>
+          </div>
+          <div className="border-t border-border pt-3">
+            <button
+              type="button"
+              onClick={signOut}
+              className="flex items-center gap-2 text-sm font-medium text-red hover:underline"
+            >
+              <LogOut size={15} />
+              Sign out
             </button>
           </div>
         </div>

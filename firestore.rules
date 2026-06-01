@@ -1,0 +1,58 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    match /documents/{docId} {
+      function d() { return resource.data; }
+
+      function isOwner() {
+        return signedIn() && d().ownerId == request.auth.uid;
+      }
+      function isMember() {
+        return signedIn() && request.auth.uid in d().memberIds;
+      }
+      function isInvited() {
+        return signedIn()
+          && request.auth.token.email != null
+          && request.auth.token.email.lower() in d().invitedEmails;
+      }
+      function hasLink() {
+        return d().linkAccess != 'none';
+      }
+      // Can edit the title metadata: owner, an editor member, or editor link-access.
+      function canEditTitle() {
+        return isOwner()
+          || (signedIn() && d().roles[request.auth.uid] == 'editor')
+          || d().linkAccess == 'editor';
+      }
+      function titleUpdateOnly() {
+        return request.resource.data.diff(d()).affectedKeys().hasOnly(['title', 'updatedAt']);
+      }
+
+      allow get: if isOwner() || isMember() || isInvited() || hasLink();
+      // Queries: each returned doc must satisfy one of these per-document.
+      allow list: if isOwner() || isMember() || isInvited();
+
+      allow create: if signedIn()
+        && request.resource.data.ownerId == request.auth.uid
+        && request.resource.data.memberIds == [request.auth.uid];
+
+      allow update: if isOwner() || (canEditTitle() && titleUpdateOnly());
+      allow delete: if isOwner();
+    }
+
+    // Persisted Yjs document state — written/read only by the server (Admin SDK,
+    // which bypasses rules). Owners may delete it when deleting their document.
+    match /docState/{docId} {
+      allow read, create, update: if false;
+      allow delete: if signedIn()
+        && exists(/databases/$(database)/documents/documents/$(docId))
+        && get(/databases/$(database)/documents/documents/$(docId)).data.ownerId == request.auth.uid;
+    }
+  }
+}

@@ -1,0 +1,22 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+
+# Logs
+*.log
+firebase-debug.log
+firestore-debug.log
+ui-debug.log
+
+# Firebase emulator / CLI artifacts
+.firebase/
+
+# Env files
+.env
+.env.local
+.env.*.local
+
+# OS
+.DS_Store
