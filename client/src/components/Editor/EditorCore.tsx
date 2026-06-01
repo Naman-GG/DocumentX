@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useEditor, EditorContent, type Editor } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Underline from '@tiptap/extension-underline'
@@ -88,21 +88,60 @@ interface EditorCoreProps {
   editor: Editor | null
 }
 
-/** The centered, paper-like editor canvas. */
+// A4 page height in px at 96dpi (297mm). Width is 794px (210mm).
+const PAGE_HEIGHT = 1123
+
+/** The centered, paged (A4) editor canvas. */
 export function EditorCore({ editor }: EditorCoreProps) {
   // Ghost-text AI autocomplete (Tab to accept).
   useAutocomplete(editor)
 
+  const contentRef = useRef<HTMLDivElement>(null)
+  const [pageCount, setPageCount] = useState(1)
+
+  // Recompute how many A4 pages the content spans whenever its height changes.
+  useEffect(() => {
+    const el = contentRef.current
+    if (!el) return
+    const recompute = () => {
+      setPageCount(Math.max(1, Math.ceil(el.scrollHeight / PAGE_HEIGHT)))
+    }
+    const ro = new ResizeObserver(recompute)
+    ro.observe(el)
+    recompute()
+    return () => ro.disconnect()
+  }, [editor])
+
   return (
     <div className="flex-1 overflow-y-auto scroll-thin px-4 py-6 sm:px-8 sm:py-10">
-      {/* A4 portrait page (210×297mm ≈ 794×1123px at 96dpi). min-height keeps
-          the page proportions even for short documents; long ones grow taller. */}
       <div
-        className="relative mx-auto w-full max-w-[794px] rounded-lg bg-bg-primary sm:min-h-[1123px]"
-        style={{ boxShadow: '0 1px 8px rgba(0,0,0,0.08)' }}
+        className="relative mx-auto w-full max-w-[794px]"
+        style={{ minHeight: pageCount * PAGE_HEIGHT }}
       >
-        <CollaboratorCursors />
-        <div className="px-6 py-10 sm:px-24 sm:py-[96px]">
+        {/* Stacked A4 page sheets (behind the content) with seams between pages. */}
+        <div
+          className="absolute inset-0 flex flex-col overflow-hidden rounded-lg"
+          style={{ boxShadow: '0 1px 8px rgba(0,0,0,0.08)' }}
+          aria-hidden
+        >
+          {Array.from({ length: pageCount }).map((_, i) => (
+            <div
+              key={i}
+              className="shrink-0 bg-bg-primary"
+              style={{
+                height: PAGE_HEIGHT,
+                borderBottom:
+                  i < pageCount - 1 ? '1px solid var(--border-strong)' : undefined,
+                boxShadow:
+                  i < pageCount - 1 ? '0 2px 6px rgba(0,0,0,0.06)' : undefined,
+              }}
+            />
+          ))}
+        </div>
+
+        {/* Continuous document content overlaid across the pages. */}
+        <div ref={contentRef} className="relative px-6 py-10 sm:px-24 sm:py-[96px]">
+          <CollaboratorCursors />
           <EditorContent editor={editor} />
         </div>
       </div>
