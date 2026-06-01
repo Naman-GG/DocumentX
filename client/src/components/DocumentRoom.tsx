@@ -1,4 +1,5 @@
-import { useCollaboration } from '../hooks/useCollaboration'
+import { Loader2 } from 'lucide-react'
+import { useCollaboration, type Collaboration } from '../hooks/useCollaboration'
 import { useDocumentEditor, EditorCore } from './Editor/EditorCore'
 import { Toolbar } from './Editor/Toolbar'
 import { Header } from './Header'
@@ -14,13 +15,28 @@ interface DocumentRoomProps {
 
 /** Top-level workspace for a single document room. */
 export function DocumentRoom({ roomId }: DocumentRoomProps) {
-  const { ydoc, provider, status, titleText } = useCollaboration(roomId)
-  const editor = useDocumentEditor(ydoc, provider)
+  const collab = useCollaboration(roomId)
+
+  if (!collab) {
+    return (
+      <div className="flex h-full flex-col items-center justify-center gap-3 text-text-secondary">
+        <Loader2 size={28} className="animate-spin-slow text-accent" />
+        <p className="text-sm">Connecting to the document…</p>
+      </div>
+    )
+  }
+
+  // Keyed by the doc so the editor is rebuilt if the connection is recreated.
+  return <RoomWorkspace key={collab.ydoc.guid} roomId={roomId} collab={collab} />
+}
+
+function RoomWorkspace({ roomId, collab }: { roomId: string; collab: Collaboration }) {
+  const editor = useDocumentEditor(collab.ydoc, collab.provider)
   const sidebarOpen = useStore((s) => s.sidebarOpen)
 
   return (
     <div className="flex h-full flex-col">
-      <Header titleText={titleText} status={status} />
+      <Header titleText={collab.titleText} status={collab.status} />
       <Toolbar editor={editor} />
 
       <div className="relative flex min-h-0 flex-1">
