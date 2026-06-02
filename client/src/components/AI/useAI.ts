@@ -93,7 +93,7 @@ export function useAutocomplete(editor: Editor | null) {
 
   // Register the decoration plugin + key handlers once per editor.
   useEffect(() => {
-    if (!editor) return
+    if (!editor || editor.isDestroyed) return
 
     const plugin = new Plugin<DecorationSet>({
       key: autocompleteKey,
@@ -143,7 +143,7 @@ export function useAutocomplete(editor: Editor | null) {
 
     editor.registerPlugin(plugin)
     return () => {
-      editor.unregisterPlugin(autocompleteKey)
+      if (!editor.isDestroyed) editor.unregisterPlugin(autocompleteKey)
     }
   }, [editor, clearSuggestion])
 

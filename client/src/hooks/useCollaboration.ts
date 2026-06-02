@@ -122,7 +122,9 @@ export function useCollaboration(roomId: string): Collaboration | null {
   useEffect(() => {
     if (!conn) return
     const { titleText } = conn
-    const update = () => setDocTitle(titleText.toString() || 'Untitled document')
+    // Mirror the raw title (empty allowed) so the header input can be cleared
+    // and retyped; the "Untitled document" fallback is a placeholder, not a value.
+    const update = () => setDocTitle(titleText.toString())
     titleText.observe(update)
     update()
     return () => titleText.unobserve(update)

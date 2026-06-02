@@ -77,8 +77,12 @@ export function useDocumentEditor(
   )
 
   // Keep the collaboration cursor label in sync with name/color changes.
+  // Guard against a torn-down view (docView === null): dispatching into a
+  // destroyed editor throws "null is not an object (this.docView.matchesNode)",
+  // which WebKit surfaces during the mount commit where Chromium does not.
   useEffect(() => {
-    editor?.chain().updateUser({ name, color }).run()
+    if (!editor || editor.isDestroyed) return
+    editor.chain().updateUser({ name, color }).run()
   }, [editor, name, color])
 
   return editor
@@ -100,16 +104,25 @@ export function EditorCore({ editor }: EditorCoreProps) {
   const [pageCount, setPageCount] = useState(1)
 
   // Recompute how many A4 pages the content spans whenever its height changes.
+  // The measurement is deferred to the next frame so the ResizeObserver doesn't
+  // fire again within the same delivery cycle ("loop completed" notice).
   useEffect(() => {
     const el = contentRef.current
     if (!el) return
+    let raf = 0
     const recompute = () => {
-      setPageCount(Math.max(1, Math.ceil(el.scrollHeight / PAGE_HEIGHT)))
+      cancelAnimationFrame(raf)
+      raf = requestAnimationFrame(() => {
+        setPageCount(Math.max(1, Math.ceil(el.scrollHeight / PAGE_HEIGHT)))
+      })
     }
     const ro = new ResizeObserver(recompute)
     ro.observe(el)
     recompute()
-    return () => ro.disconnect()
+    return () => {
+      cancelAnimationFrame(raf)
+      ro.disconnect()
+    }
   }, [editor])
 
   return (

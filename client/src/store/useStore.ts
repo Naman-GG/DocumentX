@@ -82,6 +82,6 @@ export const useStore = create<UIState>((set) => ({
   setMuted: (isMuted) => set({ isMuted }),
   setSpeaking: (isSpeaking) => set({ isSpeaking }),
 
-  docTitle: 'Untitled document',
+  docTitle: '',
   setDocTitle: (docTitle) => set({ docTitle }),
 }))
