@@ -3,7 +3,8 @@ import {
 } from 'react'
 import {
   onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword,
-  signInWithPopup, GoogleAuthProvider, updateProfile, signOut, type User,
+  signInWithPopup, signInAnonymously, linkWithCredential, linkWithPopup,
+  EmailAuthProvider, GoogleAuthProvider, updateProfile, signOut, type User,
 } from 'firebase/auth'
 import { Navigate, useLocation } from 'react-router-dom'
 import { Loader2 } from 'lucide-react'
@@ -11,13 +12,20 @@ import { auth } from '../lib/firebase'
 import { useStore } from '../store/useStore'
 import { getTabId } from '../utils/identity'
 import { colorForUid } from '../utils/colors'
+import { backfillOwnerEmail } from '../lib/documents'
 
 interface AuthContextValue {
   user: User | null
   loading: boolean
+  /** True while signed in as an anonymous ("continue without login") guest. */
+  isGuest: boolean
   signUpEmail: (email: string, password: string, name: string) => Promise<void>
   signInEmail: (email: string, password: string) => Promise<void>
   signInGoogle: () => Promise<void>
+  signInGuest: () => Promise<void>
+  /** Upgrade the current guest to a permanent account, keeping their documents. */
+  upgradeWithEmail: (email: string, password: string, name: string) => Promise<void>
+  upgradeWithGoogle: () => Promise<void>
   signOutUser: () => Promise<void>
   updateName: (name: string) => Promise<void>
 }
@@ -31,7 +39,7 @@ function syncIdentity(u: User | null) {
     setIdentity({ peerId: '', name: '', color: '#2563EB' })
     return
   }
-  const name = u.displayName || u.email?.split('@')[0] || 'User'
+  const name = u.displayName || u.email?.split('@')[0] || (u.isAnonymous ? 'Guest' : 'User')
   setIdentity({ peerId: `${u.uid}:${getTabId()}`, name, color: colorForUid(u.uid) })
 }
 
@@ -51,6 +59,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const value: AuthContextValue = {
     user,
     loading,
+    isGuest: !!user?.isAnonymous,
     async signUpEmail(email, password, name) {
       const cred = await createUserWithEmailAndPassword(auth, email, password)
       await updateProfile(cred.user, { displayName: name })
@@ -62,6 +71,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     },
     async signInGoogle() {
       await signInWithPopup(auth, new GoogleAuthProvider())
+    },
+    async signInGuest() {
+      const cred = await signInAnonymously(auth)
+      // Give the guest a readable display name (used in awareness/avatars).
+      await updateProfile(cred.user, { displayName: 'Guest' })
+      syncIdentity(cred.user)
+      force()
+    },
+    async upgradeWithEmail(email, password, name) {
+      const current = auth.currentUser
+      if (!current) throw new Error('No guest session to upgrade.')
+      const cred = await linkWithCredential(current, EmailAuthProvider.credential(email, password))
+      await updateProfile(cred.user, { displayName: name })
+      await backfillOwnerEmail(cred.user)
+      syncIdentity(cred.user)
+      force()
+    },
+    async upgradeWithGoogle() {
+      const current = auth.currentUser
+      if (!current) throw new Error('No guest session to upgrade.')
+      const cred = await linkWithPopup(current, new GoogleAuthProvider())
+      await backfillOwnerEmail(cred.user)
+      syncIdentity(cred.user)
+      force()
     },
     async signOutUser() {
       await signOut(auth)

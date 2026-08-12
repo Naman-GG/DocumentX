@@ -65,6 +65,12 @@ export function DocumentRoom({ docId }: DocumentRoomProps) {
   return <RoomGate docId={docId} role={role} meta={meta} />
 }
 
+/** Guests have no email address, so sharing/inviting is unavailable to them. */
+function useCanShare(role: Role): boolean {
+  const { isGuest } = useAuth()
+  return role === 'owner' && !isGuest
+}
+
 /** Establishes the collaboration connection once access is confirmed. */
 function RoomGate({ docId, role, meta }: { docId: string; role: Role; meta: DocMeta }) {
   const collab = useCollaboration(docId)
@@ -81,6 +87,7 @@ function RoomWorkspace({
   meta: DocMeta
 }) {
   const editable = role !== 'viewer'
+  const canShare = useCanShare(role)
   const editor = useDocumentEditor(collab.ydoc, collab.provider, editable)
   const sidebarOpen = useStore((s) => s.sidebarOpen)
   const docTitle = useStore((s) => s.docTitle)
@@ -108,7 +115,7 @@ function RoomWorkspace({
         titleText={collab.titleText}
         status={collab.status}
         role={role}
-        canShare={role === 'owner'}
+        canShare={canShare}
         onShare={() => setShareOpen(true)}
       />
       <Toolbar editor={editor} />
@@ -133,7 +140,7 @@ function RoomWorkspace({
         <AIPanel editor={editor} />
       </div>
 
-      {role === 'owner' && (
+      {canShare && (
         <ShareModal open={shareOpen} onClose={() => setShareOpen(false)} meta={meta} />
       )}
     </div>

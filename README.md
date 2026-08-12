@@ -5,6 +5,7 @@ A full-stack, real-time collaborative document editor — like Google Docs — w
 ## Features
 
 - **Accounts** — email/password and one-click Google sign-in (Firebase Auth), with editable display names.
+- **Guest mode** — "Continue without an account" starts an anonymous session: full dashboard, editing, voice and AI, no sign-up. Guests can later create a real account from inside the app and keep every document they wrote (the account links to the same identity).
 - **Document dashboard** — your documents + ones shared with you; create, rename, delete.
 - **Privacy & sharing (Google-Docs-style)** — documents are private by default. Owners can invite people by email (Editor/Viewer) and/or enable an "anyone with the link" toggle (view or edit). Access is enforced both by Firestore rules and by the WebSocket server.
 - **Real-time collaborative editing** — conflict-free (CRDT) via Tiptap + Yjs, with live cursors showing each person's name and color.
@@ -42,7 +43,7 @@ WebRTC audio is peer-to-peer (server only relays signaling).
 ## 1. Firebase setup (once)
 
 1. Create a project at [console.firebase.google.com](https://console.firebase.google.com/).
-2. **Authentication** → Get started → enable **Email/Password** and **Google** sign-in providers.
+2. **Authentication** → Get started → enable the **Email/Password**, **Google**, and **Anonymous** sign-in providers. (Anonymous powers "Continue without an account"; without it that button reports that guest access is disabled.)
 3. **Firestore Database** → Create database (Production mode).
 4. **Project settings → General → Your apps** → add a **Web app** → copy the config values into `client/.env` (the `VITE_FIREBASE_*` vars).
 5. **Project settings → Service accounts** → **Generate new private key** → you'll paste this JSON into the server's `FIREBASE_SERVICE_ACCOUNT` env var (as a single line).

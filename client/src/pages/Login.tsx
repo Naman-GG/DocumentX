@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
-import { Loader2, Mail, Lock, User as UserIcon, AlertCircle } from 'lucide-react'
+import { Loader2, Mail, Lock, User as UserIcon, UserRound, AlertCircle } from 'lucide-react'
 import { useAuth } from '../auth/AuthProvider'
 
 type Mode = 'signin' | 'signup'
@@ -20,14 +20,16 @@ function friendlyError(err: unknown): string {
     case 'auth/invalid-email':
       return 'That email address looks invalid.'
     case 'auth/popup-closed-by-user':
-      return 'Google sign-in was cancelled.'
+      return 'Sign-in was cancelled.'
+    case 'auth/operation-not-allowed':
+      return 'Guest access is not enabled for this project. Enable the Anonymous provider in Firebase Authentication.'
     default:
       return 'Something went wrong. Please try again.'
   }
 }
 
 export function Login() {
-  const { user, loading: authLoading, signInEmail, signUpEmail, signInGoogle } = useAuth()
+  const { user, loading: authLoading, signInEmail, signUpEmail, signInGoogle, signInGuest } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
   const from = (location.state as { from?: string } | null)?.from || '/'
@@ -64,6 +66,19 @@ export function Login() {
     setBusy(true)
     try {
       await signInGoogle()
+      navigate(from, { replace: true })
+    } catch (err) {
+      setError(friendlyError(err))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const guest = async () => {
+    setError(null)
+    setBusy(true)
+    try {
+      await signInGuest()
       navigate(from, { replace: true })
     } catch (err) {
       setError(friendlyError(err))
@@ -169,6 +184,19 @@ export function Login() {
             <GoogleIcon />
             Continue with Google
           </button>
+
+          <button
+            type="button"
+            onClick={guest}
+            disabled={busy}
+            className="mt-2 flex w-full items-center justify-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-medium text-text-secondary transition-colors hover:bg-bg-secondary hover:text-text-primary disabled:opacity-50"
+          >
+            <UserRound size={16} />
+            Continue without an account
+          </button>
+          <p className="mt-1 text-center text-xs text-text-muted">
+            Write and edit right away. Documents stay on this browser until you create an account.
+          </p>
         </div>
       </div>
     </div>

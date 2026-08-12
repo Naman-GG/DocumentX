@@ -131,6 +131,23 @@ export async function listSharedDocuments(uid: string, email: string | null): Pr
   return Array.from(map.values()).sort((a, b) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0))
 }
 
+/**
+ * After a guest upgrades to a real account their uid stays the same, but the
+ * documents they created while anonymous still carry an empty ownerEmail.
+ * Backfill it so sharing and the "shared by" labels read correctly.
+ * Best-effort: a failure here never blocks the upgrade.
+ */
+export async function backfillOwnerEmail(user: User): Promise<void> {
+  const email = user.email
+  if (!email) return
+  const snap = await getDocs(query(collection(db, COL), where('ownerId', '==', user.uid)))
+  await Promise.all(
+    snap.docs.map((d) =>
+      updateDoc(d.ref, { ownerEmail: email, [`memberEmails.${user.uid}`]: email }).catch(() => {})
+    )
+  )
+}
+
 export async function updateTitle(id: string, title: string): Promise<void> {
   await updateDoc(doc(db, COL, id), { title, updatedAt: serverTimestamp() })
 }

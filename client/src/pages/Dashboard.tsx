@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
-  Plus, LogOut, Moon, Sun, FileText, Loader2, MoreVertical, Pencil, Trash2, Users,
+  Plus, LogOut, Moon, Sun, FileText, Loader2, MoreVertical, Pencil, Trash2, Users, Sparkles,
 } from 'lucide-react'
 import { useAuth } from '../auth/AuthProvider'
 import { useStore } from '../store/useStore'
 import { initialsOf } from '../utils/colors'
 import { Modal } from '../components/UI/Modal'
+import { UpgradeAccountModal } from '../components/UpgradeAccountModal'
 import {
   createDocument, listMyDocuments, listSharedDocuments, updateTitle, deleteDocument,
   resolveAccess, type DocMeta,
@@ -14,7 +15,7 @@ import {
 
 export function Dashboard() {
   const navigate = useNavigate()
-  const { user, signOutUser } = useAuth()
+  const { user, isGuest, signOutUser } = useAuth()
   const { name, color, theme, toggleTheme } = useStore()
 
   const [mine, setMine] = useState<DocMeta[]>([])
@@ -23,6 +24,7 @@ export function Dashboard() {
   const [error, setError] = useState<string | null>(null)
   const [renaming, setRenaming] = useState<DocMeta | null>(null)
   const [creating, setCreating] = useState(false)
+  const [upgradeOpen, setUpgradeOpen] = useState(false)
 
   const load = useCallback(async () => {
     if (!user) return
@@ -61,6 +63,11 @@ export function Dashboard() {
   }
 
   const signOut = async () => {
+    // A guest session lives only in this browser — leaving it is irreversible.
+    if (isGuest && !window.confirm(
+      'Leaving guest mode permanently loses access to the documents you created. ' +
+      'Create an account first to keep them. Leave anyway?'
+    )) return
     await signOutUser()
     navigate('/login', { replace: true })
   }
@@ -80,7 +87,22 @@ export function Dashboard() {
           </div>
           <span className="text-sm font-semibold text-text-primary">DocumentX</span>
         </div>
+        {isGuest && (
+          <span className="rounded-full bg-bg-tertiary px-2 py-0.5 text-[11px] font-medium text-text-secondary">
+            Guest
+          </span>
+        )}
         <div className="ml-auto flex items-center gap-2">
+          {isGuest && (
+            <button
+              type="button"
+              onClick={() => setUpgradeOpen(true)}
+              className="hidden h-8 items-center gap-1.5 rounded-md bg-accent-subtle px-2.5 text-sm font-medium text-accent hover:bg-accent hover:text-white sm:flex"
+            >
+              <Sparkles size={15} />
+              Save my work
+            </button>
+          )}
           <button
             type="button"
             onClick={toggleTheme}
@@ -102,16 +124,35 @@ export function Dashboard() {
             className="flex h-8 items-center gap-1.5 rounded-md px-2.5 text-sm font-medium text-text-secondary hover:bg-bg-secondary"
           >
             <LogOut size={15} />
-            <span className="hidden sm:inline">Sign out</span>
+            <span className="hidden sm:inline">{isGuest ? 'Exit guest' : 'Sign out'}</span>
           </button>
         </div>
       </header>
 
       <main className="mx-auto w-full max-w-4xl flex-1 overflow-y-auto scroll-thin px-6 py-8">
+        {isGuest && (
+          <div className="mb-6 flex flex-col gap-2 rounded-xl border border-border bg-bg-primary p-4 sm:flex-row sm:items-center">
+            <div className="min-w-0">
+              <p className="text-sm font-medium text-text-primary">You're using DocumentX as a guest</p>
+              <p className="text-sm text-text-secondary">
+                Everything works except sharing. Your documents are tied to this browser — create an
+                account to keep them and open them anywhere.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setUpgradeOpen(true)}
+              className="shrink-0 rounded-lg bg-accent px-3.5 py-2 text-sm font-medium text-white transition-colors hover:bg-accent-hover sm:ml-auto"
+            >
+              Create an account
+            </button>
+          </div>
+        )}
+
         <div className="mb-6 flex items-center justify-between">
           <div>
             <h1 className="document-title text-2xl text-text-primary">
-              {greeting()}, {name?.split(' ')[0] || 'there'}
+              {greeting()}, {isGuest ? 'there' : name?.split(' ')[0] || 'there'}
             </h1>
             <p className="text-sm text-text-secondary">Create and manage your documents</p>
           </div>
@@ -169,6 +210,13 @@ export function Dashboard() {
           </div>
         )}
       </main>
+
+      {/* Guest → permanent account */}
+      <UpgradeAccountModal
+        open={upgradeOpen}
+        onClose={() => setUpgradeOpen(false)}
+        onUpgraded={load}
+      />
 
       {/* Rename modal */}
       <RenameModal

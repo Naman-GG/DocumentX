@@ -11,6 +11,7 @@ import { useAuth } from '../auth/AuthProvider'
 import { initialsOf } from '../utils/colors'
 import { Modal } from './UI/Modal'
 import { Tooltip } from './UI/Tooltip'
+import { UpgradeAccountModal } from './UpgradeAccountModal'
 
 interface HeaderProps {
   titleText: Y.Text
@@ -26,10 +27,11 @@ export function Header({ titleText, status, role, canShare, onShare }: HeaderPro
     aiPanelOpen, toggleAIPanel, sidebarOpen, toggleSidebar,
     docTitle, users,
   } = useStore()
-  const { updateName, signOutUser } = useAuth()
+  const { updateName, signOutUser, isGuest } = useAuth()
   const navigate = useNavigate()
 
   const [nameModalOpen, setNameModalOpen] = useState(false)
+  const [upgradeOpen, setUpgradeOpen] = useState(false)
   const [draftName, setDraftName] = useState(name)
 
   const onTitleChange = (value: string) => {
@@ -47,6 +49,11 @@ export function Header({ titleText, status, role, canShare, onShare }: HeaderPro
   }
 
   const signOut = async () => {
+    // A guest session lives only in this browser — leaving it is irreversible.
+    if (isGuest && !window.confirm(
+      'Leaving guest mode permanently loses access to the documents you created. ' +
+      'Create an account first to keep them. Leave anyway?'
+    )) return
     await signOutUser()
     navigate('/login', { replace: true })
   }
@@ -196,18 +203,33 @@ export function Header({ titleText, status, role, canShare, onShare }: HeaderPro
               Save
             </button>
           </div>
-          <div className="border-t border-border pt-3">
+          <div className="space-y-3 border-t border-border pt-3">
+            {isGuest && (
+              <button
+                type="button"
+                onClick={() => {
+                  setNameModalOpen(false)
+                  setUpgradeOpen(true)
+                }}
+                className="flex items-center gap-2 text-sm font-medium text-accent hover:underline"
+              >
+                <Sparkles size={15} />
+                Create an account to keep your documents
+              </button>
+            )}
             <button
               type="button"
               onClick={signOut}
               className="flex items-center gap-2 text-sm font-medium text-red hover:underline"
             >
               <LogOut size={15} />
-              Sign out
+              {isGuest ? 'Exit guest mode' : 'Sign out'}
             </button>
           </div>
         </div>
       </Modal>
+
+      <UpgradeAccountModal open={upgradeOpen} onClose={() => setUpgradeOpen(false)} />
     </header>
   )
 }
