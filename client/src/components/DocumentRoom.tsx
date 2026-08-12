@@ -131,7 +131,7 @@ function RoomWorkspace({
         <aside
           className={`${
             sidebarOpen ? 'flex' : 'hidden'
-          } w-60 shrink-0 flex-col overflow-y-auto scroll-thin border-l border-border bg-bg-primary`}
+          } w-60 shrink-0 flex-col overflow-y-auto scroll-thin border-l border-border bg-bg-primary print:hidden`}
         >
           <UsersList />
           <VoicePanel roomId={docId} />

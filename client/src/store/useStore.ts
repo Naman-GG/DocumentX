@@ -46,6 +46,11 @@ interface UIState {
   // Document title (stored in Yjs, mirrored here for the header)
   docTitle: string
   setDocTitle: (title: string) => void
+
+  // How many A4 sheets the document currently spans (measured by the
+  // Pagination extension, which is the single source of truth for layout).
+  pageCount: number
+  setPageCount: (count: number) => void
 }
 
 const theme = loadTheme()
@@ -84,4 +89,7 @@ export const useStore = create<UIState>((set) => ({
 
   docTitle: '',
   setDocTitle: (docTitle) => set({ docTitle }),
+
+  pageCount: 1,
+  setPageCount: (pageCount) => set({ pageCount }),
 }))

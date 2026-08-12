@@ -59,7 +59,7 @@ export function Header({ titleText, status, role, canShare, onShare }: HeaderPro
   }
 
   return (
-    <header className="flex h-14 shrink-0 items-center gap-3 border-b border-border bg-bg-primary px-3 sm:px-4">
+    <header className="flex h-14 shrink-0 items-center gap-3 border-b border-border bg-bg-primary px-3 print:hidden sm:px-4">
       {/* Logo → back to dashboard */}
       <Tooltip label="All documents">
         <button

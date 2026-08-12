@@ -114,7 +114,7 @@ export function Toolbar({ editor }: ToolbarProps) {
     ?.replace('px', '') ?? ''
 
   return (
-    <div className="sticky top-0 z-20 border-b border-border bg-bg-primary">
+    <div className="sticky top-0 z-20 border-b border-border bg-bg-primary print:hidden">
       <div className="flex items-center gap-0.5 overflow-x-auto scroll-thin px-2 py-1.5">
         {/* History */}
         <IconButton label="Undo (Ctrl+Z)" onClick={() => editor.chain().focus().undo().run()} disabled={!editor.can().undo()}>

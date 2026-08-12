@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect } from 'react'
 import { useEditor, EditorContent, type Editor } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Underline from '@tiptap/extension-underline'
@@ -22,6 +22,7 @@ import type * as Y from 'yjs'
 import type { WebsocketProvider } from 'y-websocket'
 import { FontSize } from './FontSize'
 import { CollaboratorCursors } from './CollaboratorCursors'
+import { Pagination, PAGE_HEIGHT, PAGE_GAP, PAGE_PITCH, PAGE_WIDTH } from './pagination'
 import { useStore } from '../../store/useStore'
 import { useAutocomplete } from '../AI/useAI'
 
@@ -58,6 +59,7 @@ export function useDocumentEditor(
         Link.configure({ openOnClick: false, autolink: true, linkOnPaste: true }),
         Image,
         Placeholder.configure({ placeholder: 'Start writing, or ask the AI panel for a draft…' }),
+        Pagination,
         Collaboration.configure({ document: ydoc }),
         CollaborationCursor.configure({
           provider,
@@ -92,68 +94,47 @@ interface EditorCoreProps {
   editor: Editor | null
 }
 
-// A4 page height in px at 96dpi (297mm). Width is 794px (210mm).
-const PAGE_HEIGHT = 1123
-
 /** The centered, paged (A4) editor canvas. */
 export function EditorCore({ editor }: EditorCoreProps) {
   // Ghost-text AI autocomplete (Tab to accept).
   useAutocomplete(editor)
 
-  const contentRef = useRef<HTMLDivElement>(null)
-  const [pageCount, setPageCount] = useState(1)
-
-  // Recompute how many A4 pages the content spans whenever its height changes.
-  // The measurement is deferred to the next frame so the ResizeObserver doesn't
-  // fire again within the same delivery cycle ("loop completed" notice).
-  useEffect(() => {
-    const el = contentRef.current
-    if (!el) return
-    let raf = 0
-    const recompute = () => {
-      cancelAnimationFrame(raf)
-      raf = requestAnimationFrame(() => {
-        setPageCount(Math.max(1, Math.ceil(el.scrollHeight / PAGE_HEIGHT)))
-      })
-    }
-    const ro = new ResizeObserver(recompute)
-    ro.observe(el)
-    recompute()
-    return () => {
-      cancelAnimationFrame(raf)
-      ro.disconnect()
-    }
-  }, [editor])
+  // How many sheets to draw. The Pagination extension measures the laid-out
+  // document and publishes it, so the sheets can never disagree with the page
+  // breaks drawn into the text.
+  const pageCount = useStore((s) => s.pageCount)
 
   return (
     <div className="flex-1 overflow-y-auto scroll-thin px-4 py-6 sm:px-8 sm:py-10">
       <div
-        className="relative mx-auto w-full max-w-[794px]"
-        style={{ minHeight: pageCount * PAGE_HEIGHT }}
+        data-page-canvas
+        className="relative mx-auto w-full"
+        style={{
+          maxWidth: PAGE_WIDTH,
+          minHeight: pageCount * PAGE_PITCH - PAGE_GAP,
+        }}
       >
-        {/* Stacked A4 page sheets (behind the content) with seams between pages. */}
+        {/* The A4 sheets themselves, behind the text. */}
         <div
-          className="absolute inset-0 flex flex-col overflow-hidden rounded-lg"
-          style={{ boxShadow: '0 1px 8px rgba(0,0,0,0.08)' }}
+          className="pointer-events-none absolute inset-0 flex flex-col"
+          style={{ gap: PAGE_GAP }}
           aria-hidden
         >
           {Array.from({ length: pageCount }).map((_, i) => (
             <div
               key={i}
-              className="shrink-0 bg-bg-primary"
-              style={{
-                height: PAGE_HEIGHT,
-                borderBottom:
-                  i < pageCount - 1 ? '1px solid var(--border-strong)' : undefined,
-                boxShadow:
-                  i < pageCount - 1 ? '0 2px 6px rgba(0,0,0,0.06)' : undefined,
-              }}
-            />
+              className="relative shrink-0 rounded-md bg-bg-primary"
+              style={{ height: PAGE_HEIGHT, boxShadow: '0 1px 10px rgba(0,0,0,0.10)' }}
+            >
+              <span className="absolute inset-x-0 bottom-6 text-center text-[11px] text-text-muted">
+                {i + 1}
+              </span>
+            </div>
           ))}
         </div>
 
-        {/* Continuous document content overlaid across the pages. */}
-        <div ref={contentRef} className="relative px-6 py-10 sm:px-24 sm:py-[96px]">
+        {/* Document content, flowing across the sheets. */}
+        <div className="relative px-6 py-10 sm:px-24 sm:py-[96px]">
           <CollaboratorCursors />
           <EditorContent editor={editor} />
         </div>

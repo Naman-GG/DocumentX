@@ -30,7 +30,7 @@ export function AIPanel({ editor }: AIPanelProps) {
 
   return (
     <aside
-      className="absolute right-0 top-0 z-30 flex h-full w-full max-w-[380px] flex-col border-l border-border bg-bg-primary shadow-xl animate-slide-in sm:w-[380px]"
+      className="absolute right-0 top-0 z-30 flex h-full w-full max-w-[380px] flex-col border-l border-border bg-bg-primary shadow-xl animate-slide-in print:hidden sm:w-[380px]"
       aria-label="AI assistant"
     >
       <div className="flex items-center justify-between border-b border-border px-4 py-3">

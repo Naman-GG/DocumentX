@@ -5,6 +5,9 @@
 @tailwind utilities;
 
 :root {
+  /* Tells the browser which palette to paint native UI with (select popups,
+     scrollbars, form controls), so they follow the app's theme. */
+  color-scheme: light;
   --bg-primary: #ffffff;
   --bg-secondary: #f7f7f5;
   --bg-tertiary: #f0efe9;
@@ -27,6 +30,7 @@
 }
 
 [data-theme='dark'] {
+  color-scheme: dark;
   --bg-primary: #1c1c1a;
   --bg-secondary: #252522;
   --bg-tertiary: #2e2e2b;
@@ -227,6 +231,16 @@
   height: 0;
 }
 
+/* Page-break spacer inserted by the Pagination extension. It carries no margin
+   of its own, so the block it pushes keeps its normal spacing below it. */
+.ProseMirror > .page-spacer {
+  margin: 0 !important;
+  padding: 0;
+  width: 100%;
+  user-select: none;
+  pointer-events: none;
+}
+
 /* Ghost-text autocomplete suggestion */
 .autocomplete-ghost {
   color: var(--text-muted);
@@ -343,4 +357,47 @@
 }
 .scroll-thin::-webkit-scrollbar-track {
   background: transparent;
+}
+
+/* ── Print ─────────────────────────────────────────────────
+   The on-screen sheets and spacers are a simulation of paper; when printing,
+   the browser does the real pagination, so they're taken out of the way. */
+@media print {
+  @page {
+    size: A4;
+    margin: 25.4mm;
+  }
+
+  body {
+    background: #fff;
+  }
+
+  [data-page-canvas] {
+    max-width: none !important;
+    min-height: 0 !important;
+  }
+  [data-page-canvas] > [aria-hidden],
+  .ProseMirror > .page-spacer {
+    display: none !important;
+  }
+  [data-page-canvas] > div:last-child {
+    padding: 0 !important;
+  }
+
+  /* Don't let the browser split these across sheets either. */
+  .ProseMirror h1,
+  .ProseMirror h2,
+  .ProseMirror h3,
+  .ProseMirror h4,
+  .ProseMirror blockquote,
+  .ProseMirror pre,
+  .ProseMirror img,
+  .ProseMirror table {
+    break-inside: avoid;
+  }
+  .ProseMirror h1,
+  .ProseMirror h2,
+  .ProseMirror h3 {
+    break-after: avoid;
+  }
 }
